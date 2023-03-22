@@ -1,0 +1,16 @@
+[package]
+name = "otsify"
+version = "0.1.0"
+authors = ["papanumba"]
+edition = "2021"
+description = "Convert images into black&white by Otsu's thresholding method"
+repository = "https://github.com/papanumba/otsify"
+license = "GPL-3.0"
+
+[dependencies]
+image = "0.23.0"
+
+[profile.release]
+lto = true
+strip = true
+# to shrink bin size
