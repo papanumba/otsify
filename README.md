@@ -33,7 +33,8 @@ helpfull on those kind of images.
 
 ## TODO
 Brainstorm of new features:
-* `--colored` or `--rgb`: this flag would otsify each RGB channel individually.
+* `--colored` or `--rgb` or `-c`: this flag would otsify each RGB channel individually.
+* `--isolates` or `-i`: the filtering isolates as an optional flag.
 
 ## Installation
 Download the binary which suits your operating system & run it from the command
