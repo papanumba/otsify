@@ -26,9 +26,11 @@ fn main()
     img::remove_isolates(&mut in_img);
 
     // save
-    match save_image(&image::DynamicImage::ImageLuma8(in_img), &o_file_name) {
-        Ok(()) => println!("File {} saved goodly.", o_file_name),
-        Err(e) => eprintln!("ERROR: saving {}", e),
+    if let Err(e) = save_image(
+        &image::DynamicImage::ImageLuma8(in_img),
+        &o_file_name
+    ) {
+        eprintln!("ERROR: saving {}", e);
     }
 }
 
@@ -68,8 +70,6 @@ fn get_file_names() -> (String, String)
 // TODO: make it work
 fn default_o_name(ifn: &str) -> String
 {
-    println!("WARNING: writing to default output name.");
-
     let mut ifn_part = ifn;
     if ifn.len() >= 5 { // if not a short name, change extension
         let ifn_chars: Vec<char> = ifn.chars().collect();
@@ -80,9 +80,10 @@ fn default_o_name(ifn: &str) -> String
             }
         }
     }
-
-    let apex = "_otsu.png";
-    return vec![ifn_part, apex].join("");
+    let mut res = ifn_part.to_string();
+    res.push_str(&"_otsu.png");
+    println!("WARNING: saving to default name \"{}\"", res);
+    return res;
 }
 
 // save image to ofn (out file name)
