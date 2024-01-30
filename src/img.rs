@@ -102,7 +102,7 @@ fn threshold_gray(img: &mut GrayImage, thr: u8)
     let (w, h) = img.dimensions();
     for x in 0..w {
         for y in 0..h {
-            if  img[(x, y)].0[0] >= thr {
+            if  img[(x, y)].0[0] > thr {
                 img[(x, y)].0[0] = 0xff;  // white
             } else {
                 img[(x, y)].0[0] = 0x00;  // black
