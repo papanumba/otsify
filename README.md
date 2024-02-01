@@ -11,7 +11,8 @@ otsified this image yet.".
 ## Description
 The program uses [Otsu's method](https://en.wikipedia.org/wiki/Otsu%27s_method)
 so as to threshold an image automatically.
-Afterwards, it also filters the "isolated" pixels, thus visually explained:
+Afterwards, if the `-i` flag is used, it will filter the "isolated" pixels,
+thus visually explained:
 
 ```
 # = black
@@ -34,8 +35,6 @@ helpful on those kinds of images.
 ## TODO
 Brainstorm of new features:
 * `--colored` or `--rgb` or `-c`: this flag would otsify each RGB channel individually.
-* `--isolates` or `-i`: the filtering isolates as an optional flag.
-* quiet/verbose flags
 
 ## Installation
 Download the binary which suits your operating system & run it from the command
@@ -46,8 +45,13 @@ Pass as CLI arguments the names of the input and optional output image files.
 If no output name is passed, the default is generated from the input, e.g.
 from `example.jpg` will result to `example_otsu.png`. Output files must be png.
 
-* Windows: `otsify.exe example.jpg output.png`
-* Linux: `./otsify example.jpg output.png`
+* Windows: `otsify.exe [options] example.jpg output.png`
+* Linux: `./otsify [options] example.jpg output.png`
+
+### Options
+* `-h, --help`: Print help information
+* `-q, --quiet`: Print fatal errors only
+* `-i`: Remove isolated pixels
 
 ## License
 This software is licensed under the GPLv3.
