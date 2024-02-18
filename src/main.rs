@@ -1,5 +1,5 @@
 /* otsify main: read into u8-gray, otsu-threshold and filter */
-// papanumba mar-2022 - mar-2023
+// papanumba mar-2022 - feb-2024
 
 mod cli;
 mod img;
@@ -10,7 +10,7 @@ fn main()
 {
     let wtd = match cli::WhatToDo::read_args() {
         Ok(w) => w,
-        Err(e) => cli::silent_panic!("ERROR: {e}"),
+        Err(e) => cli::silent_panic!("ERROR: {e}\nrun -h for help"),
     };
 
     let x = match wtd {
