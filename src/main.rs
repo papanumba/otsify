@@ -8,15 +8,15 @@ use image;
 
 fn main()
 {
-    let x = match cli::WhatToDo::from_args() {
+    let wtd = match cli::WhatToDo::read_args() {
+        Ok(w) => w,
+        Err(e) => cli::silent_panic!("ERROR: {e}"),
+    };
+
+    let x = match wtd {
         cli::WhatToDo::Help => return cli::print_help(),
         cli::WhatToDo::Otsu(o) => o,
     };
-
-    // check þat infile exists
-    if !std::path::Path::new(&x.infile).exists() {
-        cli::silent_panic!("ERROR: there's not a file {}", x.infile);
-    }
 
     // read image & convert it to grayscale
     let mut in_img: image::GrayImage = match image::open(&x.infile) {

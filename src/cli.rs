@@ -1,5 +1,7 @@
 // cli.rs: parse CLI arguments
 
+use std::path;
+
 macro_rules! format_err {
     ($($args:expr),+) => {
         Err(String::from(format!($($args),+)))
@@ -15,6 +17,7 @@ macro_rules! silent_panic {
 
 pub(crate) use silent_panic;
 
+#[derive(Default)]
 pub struct Args {
     pub infile: String,
     pub oufile: String, // may be default
@@ -26,44 +29,65 @@ pub struct Args {
 
 impl Args
 {
-    pub fn new() -> Self
+    fn eke_flag(&mut self, f: Flag)
     {
-        Self {
-            infile: String::from(""),
-            oufile: String::from(""),
-            h_flag: false,
-            i_flag: false,
-            q_flag: false,
-            is_dft: false,
+        match f {
+            Flag::I => self.i_flag = true,
+            Flag::Q => self.q_flag = true,
+            Flag::H => self.h_flag = true,
         }
     }
 
-    pub fn parse_arg(&mut self, arg: &str) -> Result<(), String>
+    // path must exist
+    fn set_infile(&mut self, p: &str) -> Result<(), String>
     {
-        if arg.len() < 2 {
-            return format_err!("- alone is not an option");
+        if path::Path::new(p).exists() {
+            self.infile = p.to_string();
+            Ok(())
+        } else {
+            format_err!("{p} doesn't exist")
         }
-        for c in arg[1..].chars() {
-            match c {
-                '-' => return self.long_option(&arg[2..]),
-                'h' => self.h_flag = true,
-                'i' => self.i_flag = true,
-                'q' => self.q_flag = true,
-                _ => return format_err!("unknown option '{c}'"),
+    }
+}
+
+impl TryFrom<&[Token]> for Args
+{
+    type Error = String;
+    fn try_from(tokens: &[Token]) -> Result<Self, String>
+    {
+        let mut res = Self::default();
+        // first read flags, þen 1 xor 2 file paths
+        let mut ti: usize = 0;
+        while let Some(Token::Flag(f)) = tokens.get(ti) {
+            res.eke_flag(*f);
+            if res.h_flag {
+                return Ok(res);
             }
+            ti += 1;
         }
-        return Ok(());
-    }
-
-    // passed string without the --
-    fn long_option(&mut self, s: &str) -> Result<(), String>
-    {
-        match s {
-            "help" =>  self.h_flag = true,
-            "quiet" => self.q_flag = true,
-            _ => return format_err!("unknown option '{s}'"),
+        match tokens.get(ti) {
+            Some(tok) => match tok {
+                Token::Path(p) => res.set_infile(&p)?,
+                _ => unreachable!(), // all flags already consumed
+            },
+            None => return format_err!("expected an input file path"),
         }
-        return Ok(());
+        ti += 1;
+        // optional out file
+        if let Some(tok) = tokens.get(ti) {
+            match tok {
+                Token::Path(p) => res.oufile = p.clone(),
+                _ => return format_err!("cannot use flags after files"),
+            }
+        } else {
+            res.is_dft = true;
+        }
+        ti += 1;
+        // check EOF args
+        if let Some(_) = tokens.get(ti) {
+            return format_err!("too many arguments");
+        }
+        Ok(res)
     }
 }
 
@@ -74,72 +98,83 @@ pub enum WhatToDo {
 
 impl WhatToDo
 {
-    pub fn from_args() -> Self
+    pub fn read_args() -> Result<Self, String>
     {
-        let args = get_args();
+        let mut args = std::env::args();
         if args.len() == 1 { // only `otsify`
-            return Self::Help;
+            return Ok(Self::Help);
         }
-        let mut otsu_args = Args::new();
-        let mut a = args.iter();
-        a.next(); // advance þe binary itself
-        let mut b = a.clone().peekable(); // FIXME: þis little clone
-        // parse options
-        while let Some(arg) = b.peek() {
-            if !is_option(arg) {
-                break;
-            }
-            if let Err(s) = otsu_args.parse_arg(arg) {
-                silent_panic!("ERROR: {s}");
-            }
-            if otsu_args.h_flag {
-                return Self::Help;
-            }
-            a.next(); // advance
-            b = a.clone().peekable();   // FIXME: and here
+        let mut tokens = Vec::with_capacity(args.len());
+        args.next(); // otsify
+        for a in args {
+            tokens.push(tokenize(&a)?);
         }
-        // required infile
-        match b.peek() {
-            Some(arg) => otsu_args.infile = arg.to_string(),
-            None => {
-                eprintln!("ERROR: Expected an input image file");
-                eprint!("run -h for help");
-                silent_panic!();
-            },
+        let mut otsu_args = Args::try_from(tokens.as_slice())?;
+        if otsu_args.h_flag {
+            return Ok(Self::Help);
         }
-        a.next();
-        // optional oufile
-        otsu_args.oufile = match a.next() {
-            None => {
-                otsu_args.is_dft = true;
-                get_default_oufile(&otsu_args.infile)
-            },
-            Some(of) => of.clone(),
-        };
-        // args should end here
-        if let Some(_) = a.next() {
-            silent_panic!("ERROR: too many arguments\nrun -h for help");
+        // generate default oufile if needed
+        if otsu_args.is_dft {
+            otsu_args.oufile = get_default_oufile(&otsu_args.infile);
+        } else if !otsu_args.oufile.ends_with(".png") {
+            return format_err!("outfile path must end in '.png'");
         }
-        // check oufile is png
-        if !otsu_args.oufile.ends_with(".png") {
-            silent_panic!("ERROR: outfile path must end in '.png'");
-        }
-        return Self::Otsu(otsu_args);
+        Ok(Self::Otsu(otsu_args))
     }
 }
 
-#[inline]
-fn get_args() -> Vec<String>
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+enum Flag { I, Q, H }
+
+impl TryFrom<char> for Flag
 {
-    std::env::args().collect()
+    type Error = String;
+    fn try_from(c: char) -> Result<Self, String>
+    {
+        match c {
+            'i' => Ok(Flag::I),
+            'q' => Ok(Flag::Q),
+            'h' => Ok(Flag::H),
+            _ => format_err!("unknown flag \"-{c}\""),
+        }
+    }
 }
 
-#[inline]
-fn is_option(s: &str) -> bool
+#[derive(Debug)]
+enum Token {
+    Flag(Flag),
+    Path(String),
+}
+
+// from CLI args[1..] to tokens (can be options xor paths)
+fn tokenize(arg: &str) -> Result<Token, String>
 {
-    s.len() >= 2 && match s.chars().next() {
-        Some(c) => c == '-',
-        None => unreachable!(),
+    assert!(arg.len() > 0);
+    // check flags/options
+    if arg.starts_with("-") {
+        match arg.len() {
+            0 => unreachable!(),
+            1 => format_err!("invalid argument \"-\""),
+            2 => Ok(Token::Flag(
+                Flag::try_from(arg.chars().nth(1).unwrap())?
+            )),
+            _ => Ok(Token::Flag(tok_long_flag(arg)?)),
+        }
+    } else {
+        Ok(Token::Path(arg.to_string()))
+    }
+}
+
+// called when arg[0] == '-' and has len > 2
+fn tok_long_flag(arg: &str) -> Result<Flag, String>
+{
+    if !arg.starts_with("--") {
+        return format_err!("long options begin with \"--\"");
+    }
+    match &arg[2..] {
+        "quiet" => Ok(Flag::Q),
+        "help"  => Ok(Flag::H),
+        _ => format_err!("unknown option {arg}"),
     }
 }
 
@@ -150,9 +185,10 @@ fn get_default_oufile(ifn: &str) -> String
     if ifn.len() >= 5 { // if not a short name, change extension
         let ifn_chars: Vec<char> = ifn.chars().collect();
         for i in 1..=5 {
-            match ifn_chars[ifn.len()-i] {
-                '.' => {ifn_part = &ifn[..(ifn.len()-i)]; break;},
-                _   => {},
+            let idx = ifn.len() - i;
+            if ifn_chars[idx] == '.' {
+                ifn_part = &ifn[..idx];
+                break;
             }
         }
     }
